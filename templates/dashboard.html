@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Система мониторинга</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .card h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 10px 0;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .metric-value {
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-up {
+            background-color: #28a745;
+        }
+        
+        .status-down {
+            background-color: #dc3545;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin: 20px 0;
+        }
+        
+        .alerts-container {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .alert {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            border-left: 4px solid #dc3545;
+            background: #f8d7da;
+        }
+        
+        .alert.resolved {
+            border-left-color: #28a745;
+            background: #d4edda;
+        }
+        
+        .refresh-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            margin: 10px 0;
+        }
+        
+        .refresh-btn:hover {
+            background: #5a6fd8;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Система мониторинга</h1>
+            <p>Мониторинг серверов и приложений в реальном времени</p>
+        </div>
+        
+        <div class="dashboard-grid">
+            <!-- Текущие метрики -->
+            <div class="card">
+                <h3>🖥️ Системные ресурсы</h3>
+                <div id="current-metrics">
+                    <div class="loading">Загрузка...</div>
+                </div>
+            </div>
+            
+            <!-- Статус веб-сервисов -->
+            <div class="card">
+                <h3>🌐 Веб-сервисы</h3>
+                <div id="web-status">
+                    <div class="loading">Загрузка...</div>
+                </div>
+            </div>
+            
+            <!-- Статистика uptime -->
+            <div class="card">
+                <h3>⏱️ Статистика uptime (24ч)</h3>
+                <div id="uptime-stats">
+                    <div class="loading">Загрузка...</div>
+                </div>
+            </div>
+            
+            <!-- Последние алерты -->
+            <div class="card">
+                <h3>🚨 Последние алерты</h3>
+                <div id="alerts" class="alerts-container">
+                    <div class="loading">Загрузка...</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- График метрик -->
+        <div class="card">
+            <h3>📈 История метрик</h3>
+            <div class="chart-container">
+                <canvas id="metricsChart"></canvas>
+            </div>
+        </div>
+        
+        <button class="refresh-btn" onclick="refreshData()">🔄 Обновить данные</button>
+    </div>
+
+    <script>
+        let metricsChart;
+        
+        // Инициализация графика
+        function initChart() {
+            const ctx = document.getElementById('metricsChart').getContext('2d');
+            metricsChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'CPU %',
+                        data: [],
+                        borderColor: 'rgb(255, 99, 132)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                        tension: 0.1
+                    }, {
+                        label: 'Memory %',
+                        data: [],
+                        borderColor: 'rgb(54, 162, 235)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        tension: 0.1
+                    }, {
+                        label: 'Disk %',
+                        data: [],
+                        borderColor: 'rgb(255, 205, 86)',
+                        backgroundColor: 'rgba(255, 205, 86, 0.2)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Загрузка текущих метрик
+        async function loadCurrentMetrics() {
+            try {
+                const response = await fetch('/api/metrics/current');
+                const metrics = await response.json();
+                
+                if (metrics) {
+                    document.getElementById('current-metrics').innerHTML = `
+                        <div class="metric">
+                            <span>CPU:</span>
+                            <span class="metric-value">${metrics.cpu_percent.toFixed(1)}%</span>
+                        </div>
+                        <div class="metric">
+                            <span>Память:</span>
+                            <span class="metric-value">${metrics.memory_percent.toFixed(1)}%</span>
+                        </div>
+                        <div class="metric">
+                            <span>Диск:</span>
+                            <span class="metric-value">${metrics.disk_percent.toFixed(1)}%</span>
+                        </div>
+                        <div class="metric">
+                            <span>Load Average:</span>
+                            <span class="metric-value">${metrics.load_average.toFixed(2)}</span>
+                        </div>
+                    `;
+                } else {
+                    document.getElementById('current-metrics').innerHTML = '<div class="loading">Нет данных</div>';
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки метрик:', error);
+                document.getElementById('current-metrics').innerHTML = '<div class="loading">Ошибка загрузки</div>';
+            }
+        }
+        
+        // Загрузка статуса веб-сервисов
+        async function loadWebStatus() {
+            try {
+                const response = await fetch('/api/web/status');
+                const services = await response.json();
+                
+                let html = '';
+                services.forEach(service => {
+                    const statusClass = service.is_up ? 'status-up' : 'status-down';
+                    const statusText = service.is_up ? 'UP' : 'DOWN';
+                    
+                    html += `
+                        <div class="metric">
+                            <span>
+                                <span class="status-indicator ${statusClass}"></span>
+                                ${service.name}
+                            </span>
+                            <span>${statusText} (${service.response_time.toFixed(2)}ms)</span>
+                        </div>
+                    `;
+                });
+                
+                document.getElementById('web-status').innerHTML = html || '<div class="loading">Нет данных</div>';
+            } catch (error) {
+                console.error('Ошибка загрузки статуса:', error);
+                document.getElementById('web-status').innerHTML = '<div class="loading">Ошибка загрузки</div>';
+            }
+        }
+        
+        // Загрузка статистики uptime
+        async function loadUptimeStats() {
+            try {
+                const response = await fetch('/api/uptime');
+                const stats = await response.json();
+                
+                let html = '';
+                stats.forEach(stat => {
+                    html += `
+                        <div class="metric">
+                            <span>${stat.name}</span>
+                            <span>${stat.uptime_percent.toFixed(1)}% (${stat.avg_response_time.toFixed(2)}ms)</span>
+                        </div>
+                    `;
+                });
+                
+                document.getElementById('uptime-stats').innerHTML = html || '<div class="loading">Нет данных</div>';
+            } catch (error) {
+                console.error('Ошибка загрузки статистики:', error);
+                document.getElementById('uptime-stats').innerHTML = '<div class="loading">Ошибка загрузки</div>';
+            }
+        }
+        
+        // Загрузка алертов
+        async function loadAlerts() {
+            try {
+                const response = await fetch('/api/alerts');
+                const alerts = await response.json();
+                
+                let html = '';
+                alerts.forEach(alert => {
+                    const alertClass = alert.resolved ? 'alert resolved' : 'alert';
+                    html += `
+                        <div class="${alertClass}">
+                            <strong>${alert.type.toUpperCase()}</strong><br>
+                            ${alert.message}<br>
+                            <small>${new Date(alert.timestamp).toLocaleString()}</small>
+                        </div>
+                    `;
+                });
+                
+                document.getElementById('alerts').innerHTML = html || '<div class="loading">Нет алертов</div>';
+            } catch (error) {
+                console.error('Ошибка загрузки алертов:', error);
+                document.getElementById('alerts').innerHTML = '<div class="loading">Ошибка загрузки</div>';
+            }
+        }
+        
+        // Загрузка истории метрик для графика
+        async function loadMetricsHistory() {
+            try {
+                const response = await fetch('/api/metrics/history');
+                const history = await response.json();
+                
+                if (history && history.length > 0) {
+                    const labels = history.map(h => new Date(h.timestamp).toLocaleTimeString());
+                    const cpuData = history.map(h => h.cpu_percent);
+                    const memoryData = history.map(h => h.memory_percent);
+                    const diskData = history.map(h => h.disk_percent);
+                    
+                    metricsChart.data.labels = labels;
+                    metricsChart.data.datasets[0].data = cpuData;
+                    metricsChart.data.datasets[1].data = memoryData;
+                    metricsChart.data.datasets[2].data = diskData;
+                    metricsChart.update();
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки истории:', error);
+            }
+        }
+        
+        // Обновление всех данных
+        async function refreshData() {
+            await Promise.all([
+                loadCurrentMetrics(),
+                loadWebStatus(),
+                loadUptimeStats(),
+                loadAlerts(),
+                loadMetricsHistory()
+            ]);
+        }
+        
+        // Инициализация при загрузке страницы
+        document.addEventListener('DOMContentLoaded', function() {
+            initChart();
+            refreshData();
+            
+            // Автообновление каждые 30 секунд
+            setInterval(refreshData, 30000);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,60 @@
+services:
+  monitor:
+    build: .
+    container_name: monitoring-system
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./monitor_config.json:/app/monitor_config.json:ro
+      - monitoring_data:/app/data
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    depends_on:
+      - dashboard
+
+  dashboard:
+    build: .
+    container_name: monitoring-dashboard
+    ports:
+      - "5001:5000"
+    volumes:
+      - monitoring_data:/app/data
+    environment:
+      - FLASK_APP=dashboard.py
+      - FLASK_ENV=production
+    command: python dashboard.py
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    restart: unless-stopped
+
+volumes:
+  monitoring_data:
+  prometheus_data:
+  grafana_data:

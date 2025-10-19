@@ -1,0 +1,26 @@
+{
+  "check_interval": 60,
+  "cpu_threshold": 80,
+  "memory_threshold": 85,
+  "disk_threshold": 90,
+  "email_alerts": false,
+  "smtp_server": "smtp.gmail.com",
+  "smtp_port": 587,
+  "email_from": "monitor@example.com",
+  "email_to": "admin@example.com",
+  "email_password": "",
+  "web_endpoints": [
+    {
+      "name": "Main App",
+      "url": "http://localhost:8000/health"
+    },
+    {
+      "name": "API Service",
+      "url": "http://localhost:3000/api/health"
+    },
+    {
+      "name": "Dashboard",
+      "url": "http://localhost:5001"
+    }
+  ]
+}
