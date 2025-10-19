@@ -22,7 +22,7 @@ A comprehensive monitoring system built with Python, Prometheus, and Grafana for
 
 ### 1. Clone the repository
 ```bash
-git clone <repository-url>
+git clone https://github.com/vlad-ultra/Python-monitoring-system-with-Prometheus-and-Grafana.git
 cd monitoring-system
 ```
 
